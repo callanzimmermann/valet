@@ -720,6 +720,136 @@ You might also want to investigate your global Composer configs. Helpful command
         '--print' => 'print diagnostics output while running',
         '--plain' => 'format clipboard output as plain text',
     ]);
+
+    /**
+     * Create database
+     */
+    $app->command('db [run] [name] [optional] [-y|--yes]', function ($input, $output, $run, $name, $optional) {
+        $helper = $this->getHelperSet()->get('question');
+        $defaults = $input->getOptions();
+
+        if ($run === 'create') {
+            $databaseName = Mysql::createDatabase($name);
+
+            if (!$databaseName) {
+                return warning('Error creating database');
+            }
+
+            info('Database "' . $databaseName . '" created successfully');
+            return;
+        }
+
+        if ($run === 'drop') {
+            if (!$defaults['yes']) {
+                $question = new ConfirmationQuestion('Are you sure you want to delete the database? [y/N] ', false);
+                if (!$helper->ask($input, $output, $question)) {
+                    warning('Aborted');
+                    return;
+                }
+            }
+            $databaseName = Mysql::dropDatabase($name);
+
+            if (!$databaseName) {
+                return warning('Error dropping database');
+            }
+
+            info('Database "' . $databaseName . '" dropped successfully');
+            return;
+        }
+
+        if ($run === 'reset') {
+            if (!$defaults['yes']) {
+                $question = new ConfirmationQuestion('Are you sure you want to reset the database? [y/N] ', false);
+                if (!$helper->ask($input, $output, $question)) {
+                    warning('Aborted');
+                    return;
+                }
+            }
+
+            $dropped = Mysql::dropDatabase($name);
+
+            if (!$dropped) {
+                return warning('Error creating database');
+            }
+
+            $databaseName = Mysql::createDatabase($name);
+
+            if (!$databaseName) {
+                return warning('Error creating database');
+            }
+
+            info('Database "' . $databaseName . '" reset successfully');
+            return;
+        }
+
+        if ($run === 'import') {
+            info('Importing database...');
+            if (!$name) {
+                throw new Exception('Please provide a dump file');
+            }
+
+            if (Mysql::isDatabaseExists($optional)) {
+                $question = new ConfirmationQuestion('Database already exists are you sure you want to continue? [y/N] ', false);
+
+                if (!$helper->ask($input, $output, $question)) {
+                    warning('Aborted');
+                    return;
+                }
+            }
+
+            Mysql::importDatabase($name, $optional);
+
+            return;
+        }
+
+        if ($run === 'reimport') {
+            if (!$defaults['yes']) {
+                $question = new ConfirmationQuestion('Are you sure you want to reimport the database? [y/N] ', false);
+                if (!$helper->ask($input, $output, $question)) {
+                    warning('Aborted');
+                    return;
+                }
+            }
+
+            info('Resetting database, importing database...');
+
+            if (!$name) {
+                throw new Exception('Please provide a dump file');
+            }
+
+            Mysql::reimportDatabase($name, $optional);
+
+            return;
+        }
+
+        if ($run === 'export' || $run === 'dump') {
+            info('Exporting database...');
+
+            $data = Mysql::exportDatabase($name, $optional);
+
+            info('Database "' . $data['database'] . '" exported into file "' . $data['filename'] . '"');
+
+            return;
+        }
+
+        if ($run === 'pwd' || $run === 'password') {
+            if (!$name || !$optional) {
+                throw new Exception('Missing arguments to change root user password. Use: "valet db pwd <old> <new>"');
+            }
+
+            info('Setting password for root user...');
+
+            Mysql::setRootPassword($name, $optional);
+
+            return;
+        }
+
+        throw new Exception('Command not found');
+    })->descriptions('Database commands (create, drop, reset, open, import, reimport, export/dump)');
+
+    $app->command('configure', function () {
+        DevTools::configure();
+    })->descriptions('Configure application connection settings');
 }
 
 /**

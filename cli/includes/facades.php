@@ -62,3 +62,9 @@ class Site extends Facade
 class Valet extends Facade
 {
 }
+class Mysql extends Facade
+{
+}
+class DevTools extends Facade
+{
+}
