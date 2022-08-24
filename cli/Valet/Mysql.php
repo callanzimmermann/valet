@@ -263,7 +263,7 @@ class Mysql
             $filename = $filename . '.gz';
         }
 
-        $this->cli->passthru('mysqldump ' . \escapeshellarg($database) . ' | gzip > ' . \escapeshellarg($filename ?: $database));
+        $this->cli->passthru('mysqldump --single-transaction -S /tmp/mysql_3306.sock ' . \escapeshellarg($database) . ' | gzip > ' . \escapeshellarg($filename ?: $database));
 
         return [
             'database' => $database,
