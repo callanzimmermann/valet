@@ -3,6 +3,8 @@
 namespace Valet;
 
 use CommandLine as CommandLineFacade;
+use RecursiveDirectoryIterator;
+use RecursiveIteratorIterator;
 
 class Filesystem
 {
@@ -244,6 +246,24 @@ class Filesystem
     }
 
     /**
+     * Recursively delete a directory and its contents.
+     *
+     * @param  string  $path
+     * @return void
+     */
+    public function rmDirAndContents($path)
+    {
+        $dir = new RecursiveDirectoryIterator($path, RecursiveDirectoryIterator::SKIP_DOTS);
+        $files = new RecursiveIteratorIterator($dir, RecursiveIteratorIterator::CHILD_FIRST);
+
+        foreach ($files as $file) {
+            $file->isDir() ? rmdir($file->getRealPath()) : unlink($file->getRealPath());
+        }
+
+        rmdir($path);
+    }
+
+    /**
      * Change the owner of the given path.
      *
      * @param  string  $path
@@ -338,5 +358,22 @@ class Filesystem
                     ->reject(function ($file) {
                         return in_array($file, ['.', '..']);
                     })->values()->all();
+    }
+
+    /**
+     * Get custom stub file if exists.
+     *
+     * @param  string  $filename
+     * @return string
+     */
+    public function getStub($filename)
+    {
+        $default = __DIR__.'/../stubs/'.$filename;
+
+        $custom = VALET_HOME_PATH.'/stubs/'.$filename;
+
+        $path = file_exists($custom) ? $custom : $default;
+
+        return $this->get($path);
     }
 }

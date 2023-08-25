@@ -11,7 +11,11 @@ use Symfony\Component\Console\Output\ConsoleOutput;
  * Define constants.
  */
 if (! defined('VALET_HOME_PATH')) {
-    define('VALET_HOME_PATH', $_SERVER['HOME'].'/.config/valet');
+    if (testing()) {
+        define('VALET_HOME_PATH', __DIR__.'/../../tests/config/valet');
+    } else {
+        define('VALET_HOME_PATH', $_SERVER['HOME'].'/.config/valet');
+    }
 }
 if (! defined('VALET_STATIC_PREFIX')) {
     define('VALET_STATIC_PREFIX', '41c270e4-5535-4daa-b23e-c269744c2f45');
@@ -24,6 +28,29 @@ define('VALET_LEGACY_HOME_PATH', $_SERVER['HOME'].'/.valet');
 define('BREW_PREFIX', (new CommandLine())->runAsUser('printf $(brew --prefix)'));
 
 define('ISOLATED_PHP_VERSION', 'ISOLATED_PHP_VERSION');
+
+/**
+ * Set or get a global console writer.
+ *
+ * @param  null|OutputInterface  $writer
+ * @return OutputInterface|\NullWriter|null
+ */
+function writer($writer = null)
+{
+    $container = Container::getInstance();
+
+    if (! $writer) {
+        if (! $container->bound('writer')) {
+            $container->instance('writer', new ConsoleOutput());
+        }
+
+        return $container->make('writer');
+    }
+
+    $container->instance('writer', $writer);
+
+    return null;
+}
 
 /**
  * Output the given text to the console.
@@ -56,11 +83,21 @@ function warning($output)
  */
 function table(array $headers = [], array $rows = [])
 {
-    $table = new Table(new ConsoleOutput);
+    $table = new Table(writer());
 
     $table->setHeaders($headers)->setRows($rows);
 
     $table->render();
+}
+
+/**
+ * Return whether the app is in the testing environment.
+ *
+ * @return bool
+ */
+function testing()
+{
+    return strpos($_SERVER['SCRIPT_NAME'], 'phpunit') !== false;
 }
 
 /**
@@ -71,24 +108,18 @@ function table(array $headers = [], array $rows = [])
  */
 function output($output)
 {
-    if (isset($_ENV['APP_ENV']) && $_ENV['APP_ENV'] === 'testing') {
-        return;
-    }
-
-    (new ConsoleOutput())->writeln($output);
+    writer()->writeln($output);
 }
 
-if (! function_exists('resolve')) {
-    /**
-     * Resolve the given class from the container.
-     *
-     * @param  string  $class
-     * @return mixed
-     */
-    function resolve($class)
-    {
-        return Container::getInstance()->make($class);
-    }
+/**
+ * Resolve the given class from the container.
+ *
+ * @param  string  $class
+ * @return mixed
+ */
+function resolve($class)
+{
+    return Container::getInstance()->make($class);
 }
 
 /**
@@ -103,33 +134,31 @@ function swap($class, $instance)
     Container::getInstance()->instance($class, $instance);
 }
 
-if (! function_exists('retry')) {
-    /**
-     * Retry the given function N times.
-     *
-     * @param  int  $retries
-     * @param  callable  $retries
-     * @param  int  $sleep
-     * @return mixed
-     */
-    function retry($retries, $fn, $sleep = 0)
-    {
-        beginning:
-        try {
-            return $fn();
-        } catch (Exception $e) {
-            if (! $retries) {
-                throw $e;
-            }
-
-            $retries--;
-
-            if ($sleep > 0) {
-                usleep($sleep * 1000);
-            }
-
-            goto beginning;
+/**
+ * Retry the given function N times.
+ *
+ * @param  int  $retries
+ * @param  callable  $retries
+ * @param  int  $sleep
+ * @return mixed
+ */
+function retry($retries, $fn, $sleep = 0)
+{
+    beginning:
+    try {
+        return $fn();
+    } catch (Exception $e) {
+        if (! $retries) {
+            throw $e;
         }
+
+        $retries--;
+
+        if ($sleep > 0) {
+            usleep($sleep * 1000);
+        }
+
+        goto beginning;
     }
 }
 
@@ -145,60 +174,54 @@ function should_be_sudo()
     }
 }
 
-if (! function_exists('tap')) {
-    /**
-     * Tap the given value.
-     *
-     * @param  mixed  $value
-     * @param  callable  $callback
-     * @return mixed
-     */
-    function tap($value, callable $callback)
-    {
-        $callback($value);
+/**
+ * Tap the given value.
+ *
+ * @param  mixed  $value
+ * @param  callable  $callback
+ * @return mixed
+ */
+function tap($value, callable $callback)
+{
+    $callback($value);
 
-        return $value;
-    }
+    return $value;
 }
 
-if (! function_exists('ends_with')) {
-    /**
-     * Determine if a given string ends with a given substring.
-     *
-     * @param  string  $haystack
-     * @param  string|array  $needles
-     * @return bool
-     */
-    function ends_with($haystack, $needles)
-    {
-        foreach ((array) $needles as $needle) {
-            if (substr($haystack, -strlen($needle)) === (string) $needle) {
-                return true;
-            }
+/**
+ * Determine if a given string ends with a given substring.
+ *
+ * @param  string  $haystack
+ * @param  string|array  $needles
+ * @return bool
+ */
+function ends_with($haystack, $needles)
+{
+    foreach ((array) $needles as $needle) {
+        if (substr($haystack, -strlen($needle)) === (string) $needle) {
+            return true;
         }
-
-        return false;
     }
+
+    return false;
 }
 
-if (! function_exists('starts_with')) {
-    /**
-     * Determine if a given string starts with a given substring.
-     *
-     * @param  string  $haystack
-     * @param  string|string[]  $needles
-     * @return bool
-     */
-    function starts_with($haystack, $needles)
-    {
-        foreach ((array) $needles as $needle) {
-            if ((string) $needle !== '' && strncmp($haystack, $needle, strlen($needle)) === 0) {
-                return true;
-            }
+/**
+ * Determine if a given string starts with a given substring.
+ *
+ * @param  string  $haystack
+ * @param  string|string[]  $needles
+ * @return bool
+ */
+function starts_with($haystack, $needles)
+{
+    foreach ((array) $needles as $needle) {
+        if ((string) $needle !== '' && strncmp($haystack, $needle, strlen($needle)) === 0) {
+            return true;
         }
-
-        return false;
     }
+
+    return false;
 }
 
 /**
